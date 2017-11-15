@@ -1,0 +1,72 @@
+---
+- name: create gpu pod on ocp master (1)
+  hosts: masters
+
+  tasks:
+    # Assuming here we have only on GPUNOE later maybe a lot more ...
+    # Later one has to iterate over the group but for now ...
+    - name: get hostname
+      shell: echo {{ hostvars[groups.nodes | first]['NV_GPU_NAME'] }}
+      register: nvgpuname
+
+    - name: get internal hostname of GPUNODE
+      shell: ssh {{ groups.nodes | first }} hostname
+      register: nvgpunode
+
+    - name: oc label the GPUNODE
+      shell: oc label node {{ nvgpunode.stdout }} alpha.kubernetes.io/nvidia-gpu-name="{{nvgpuname.stdout}}" --overwrite
+
+    - name: oc describe GPUNODE
+      shell: oc describe node {{ nvgpunode.stdout }} | egrep -B1 'Name:|gpu:'
+
+    - name: create gpu-pod.yaml
+      shell: |
+        echo '#kubeletArguments:
+              #  feature-gates:
+              #    - Accelerators=true
+
+              apiVersion: v1
+              kind: Pod
+              metadata:
+                generateName: gpu-pod-
+                annotations:
+                  scheduler.alpha.kubernetes.io/affinity: >
+                    {
+                      "nodeAffinity": {
+                        "requiredDuringSchedulingIgnoredDuringExecution": {
+                          "nodeSelectorTerms": [
+                            {
+                              "matchExpressions": [
+                                {
+                                  "key": "alpha.kubernetes.io/nvidia-gpu-name",
+                                  "operator": "In",
+                                  "values": ["Tesla-M60"]
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      }
+                    }
+              spec:
+                containers:
+                  - name: gpu-container-1
+              #      securityContext:
+              #      privileged: true
+                    image: rhel7
+                    imagePullPolicy: IfNotPresent
+                    resources:
+                      limits:
+                        alpha.kubernetes.io/nvidia-gpu: 1
+              #      volumeMounts:
+              #      - mountPath: /usr/bin
+              #        name: bin
+              #      - mountPath: /usr/lib64/nvidia
+              #        name: lib
+                    command:
+                      - sleep
+                      - "infinity"' > /tmp/gpu-pod.yaml
+
+    - name: oc create pod
+      shell: oc create -f /tmp/gpu-pod.yaml
+...
