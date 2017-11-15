@@ -8,6 +8,14 @@
       register: lsnv
       ignore_errors: yes
 
+    - block:
+        - name: "end play if we are not a gpu node"
+          debug:
+            msg: "no gpu node, ending play"
+
+        - meta: end_play
+      when: "lsnv.rc != 0"
+
     - name: remove all old and new kernels
       shell: |
         for i in `rpm -q kernel`
