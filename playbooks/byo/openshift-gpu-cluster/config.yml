@@ -6,7 +6,7 @@
     - name: Do we have a CUDA enabled instance?
       shell: lspci | grep NVIDIA
       register: lsnv
-      failed_when: "lsnv.rc != 0"
+      ignore_errors: yes
 
     - name: remove all old and new kernels
       shell: |
@@ -208,13 +208,15 @@
     # after deviceQuery
     # ls /dev/nv*
     # /dev/nvidia0  /dev/nvidiactl  /dev/nvidia-uvm  /dev/nvidia-uvm-tools
-    - name: Install xorg-x11-drv-nvidia
+    - name: Install cuda-9-0
       yum:
         name: cuda-9-0
         state: present
 
     - name: Run deviceQuery to have all character devices
       shell: /usr/local/cuda-9.0/extras/demo_suite/deviceQuery
+
+
 
 
 
