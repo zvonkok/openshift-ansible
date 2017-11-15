@@ -6,11 +6,11 @@
     # Assuming here we have only on GPUNOE later maybe a lot more ...
     # Later one has to iterate over the group but for now ...
     - name: get hostname
-      shell: echo {{ hostvars[groups.nodes | first]['NV_GPU_NAME'] }}
+      shell: echo {{ hostvars[groups.nodes | last]['NV_GPU_NAME'] }}
       register: nvgpuname
 
     - name: get internal hostname of GPUNODE
-      shell: ssh {{ groups.nodes | first }} hostname
+      shell: ssh {{ groups.nodes | last }} hostname
       register: nvgpunode
 
     - name: oc label the GPUNODE
