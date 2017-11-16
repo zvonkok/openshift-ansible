@@ -1,72 +1,104 @@
 ---
-- name: create gpu pod on ocp master (1)
+- name: create gpu pod on ocp master
   hosts: masters
 
   tasks:
-    # Assuming here we have only on GPUNOE later maybe a lot more ...
-    # Later one has to iterate over the group but for now ...
-    - name: get hostname
-      shell: echo {{ hostvars[groups.nodes | last]['NV_GPU_NAME'] }}
-      register: nvgpuname
+    - name: bypass host loop
+      add_host:
+        name: "{{ inventory_hostname }}"
+        groups: lonely_master
 
-    - name: get internal hostname of GPUNODE
-      shell: ssh {{ groups.nodes | last }} hostname
-      register: nvgpunode
+- name: only one master needed
+  hosts: lonely_master
 
+  vars:
+    gpu_nodes: |
+      {% set res = {} %}
+      {% for host in groups['nodes'] %}
+      {% if hostvars[host]['valid'] == "0" %}
+      {% set x=res.__setitem__('nodename', hostvars[host]['ansible_nodename']) %}
+      {% set x=res.__setitem__('gpuname', hostvars[host]['NV_GPU_NAME']) %}
+      {% set x=res.__setitem__('invname', hostvars[host]['inventory_hostname']) %}
+      {% endif %}
+      {% endfor %}
+      {{ res }}
+
+  tasks:
     - name: oc label the GPUNODE
-      shell: oc label node {{ nvgpunode.stdout }} alpha.kubernetes.io/nvidia-gpu-name="{{nvgpuname.stdout}}" --overwrite
+      shell: oc label node {{ item.nodename }} alpha.kubernetes.io/nvidia-gpu-name="{{item.gpuname}}" --overwrite
+      with_items:
+        - "{{ gpu_nodes }}"
 
     - name: oc describe GPUNODE
-      shell: oc describe node {{ nvgpunode.stdout }} | egrep -B1 'Name:|gpu:'
+      shell: oc describe node {{ item.nodename }} | egrep -B1 'Name:|gpu:'
+      with_items:
+        - "{{ gpu_nodes }}"
+
+    - name: restart atomic-openshift-node
+      shell: systemctl restart atomic-openshift-node
+      delegate_to: "{{ item.invname }}"
+      with_items:
+        - "{{ gpu_nodes }}"
+
+    - name: oc describe GPUNODE
+      shell: oc describe node {{ item.nodename }} | egrep -B1 'Name:|gpu:'
+      with_items:
+        - "{{ gpu_nodes }}"
+
 
     - name: create gpu-pod.yaml
-      shell: |
-        echo '#kubeletArguments:
-              #  feature-gates:
-              #    - Accelerators=true
-
-              apiVersion: v1
-              kind: Pod
-              metadata:
-                generateName: gpu-pod-
-                annotations:
-                  scheduler.alpha.kubernetes.io/affinity: >
-                    {
-                      "nodeAffinity": {
-                        "requiredDuringSchedulingIgnoredDuringExecution": {
-                          "nodeSelectorTerms": [
+      shell:
+        cmd: |
+          cat <<EOF >> /tmp/gpu-pod.yaml
+          #kubeletArguments:
+          #  feature-gates:
+          #    - Accelerators=true
+          apiVersion: v1
+          kind: Pod
+          metadata:
+            generateName: gpu-pod-
+            annotations:
+              scheduler.alpha.kubernetes.io/affinity: >
+                {
+                  "nodeAffinity": {
+                    "requiredDuringSchedulingIgnoredDuringExecution": {
+                      "nodeSelectorTerms": [
+                        {
+                          "matchExpressions": [
                             {
-                              "matchExpressions": [
-                                {
-                                  "key": "alpha.kubernetes.io/nvidia-gpu-name",
-                                  "operator": "In",
-                                  "values": ["Tesla-M60"]
-                                }
-                              ]
+                              "key": "alpha.kubernetes.io/nvidia-gpu-name",
+                              "operator": "In",
+                              "values": ["Tesla-M60"]
                             }
                           ]
                         }
-                      }
+                      ]
                     }
-              spec:
-                containers:
-                  - name: gpu-container-1
-              #      securityContext:
-              #      privileged: true
-                    image: rhel7
-                    imagePullPolicy: IfNotPresent
-                    resources:
-                      limits:
-                        alpha.kubernetes.io/nvidia-gpu: 1
-              #      volumeMounts:
-              #      - mountPath: /usr/bin
-              #        name: bin
-              #      - mountPath: /usr/lib64/nvidia
-              #        name: lib
-                    command:
-                      - sleep
-                      - "infinity"' > /tmp/gpu-pod.yaml
+                  }
+                }
+          spec:
+            containers:
+              - name: gpu-container-1
+                #      securityContext:
+                #      privileged: true
+                image: rhel7
+                imagePullPolicy: IfNotPresent
+                resources:
+                  limits:
+                    alpha.kubernetes.io/nvidia-gpu: 1
+          #      volumeMounts:
+          #      - mountPath: /usr/bin
+          #        name: bin
+          #      - mountPath: /usr/lib64/nvidia
+          #        name: lib
+                command:
+                  - sleep
+                  - "infinity"
+          EOF
 
     - name: oc create pod
       shell: oc create -f /tmp/gpu-pod.yaml
+
+    - name: oc get pods
+      shell: oc get pods
 ...

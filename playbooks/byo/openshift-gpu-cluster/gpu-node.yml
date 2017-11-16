@@ -3,24 +3,25 @@
   hosts: nodes
 
   tasks:
+    - name: set fact nvgpuname for future use
+      set_fact: NV_GPU_NAME={{ "0xDEADBEEF" }}
+
     - name: Do we have a CUDA enabled instance?
       shell: lspci | grep NVIDIA
       register: lsnv
       ignore_errors: yes
 
-    - block:
-        - name: "end play if we are not a gpu node"
-          debug:
-            msg: "no gpu node, ending play"
+    - set_fact: valid={{ lsnv.rc }}
+    - group_by: key=gpunodes-{{ valid }}
 
-        - meta: end_play
-      when: "lsnv.rc != 0"
-
+- name: only on gpu enabled hosts
+  hosts: gpunodes-0
+  tasks:
     - name: remove all old and new kernels
       shell: |
         for i in `rpm -q kernel`
         do
-             rpm -e $i;
+          rpm -e $i;
         done
 
     - name: Install kernel specific for CUDA
@@ -134,8 +135,8 @@
         state=present
         key={{ item }}
       with_items:
-         - https://nvidia.github.io/nvidia-container-runtime/gpgkey
-         - https://nvidia.github.io/libnvidia-container/gpgkey
+        - https://nvidia.github.io/nvidia-container-runtime/gpgkey
+        - https://nvidia.github.io/libnvidia-container/gpgkey
 
     - name: Update repo cache for the new repo
       command: yum -q makecache -y --disablerepo=* --enablerepo={{ item }}
@@ -157,8 +158,8 @@
         group: root
 
 
-    # docker segfaults when using /etc/docker/daemon.json
-    # using docker drop-in ...'
+      # docker segfaults when using /etc/docker/daemon.json
+      # using docker drop-in ...'
     - name: systemd docker drop-in
       shell: |
         echo '[Service]
@@ -189,17 +190,13 @@
       register: nvrt
       failed_when: "nvrt.rc != 0"
 
-
-    - name: get yaml processor
-      shell: |
-        wget https://github.com/mikefarah/yaml/releases/download/1.13.1/yaml_linux_amd64
-        mv yaml_linux_amd64 yaml
-        chmod +x yaml
-      args:
-        chdir: /tmp
-
     - name: add feature-gate to node-config.yaml
-      shell: /tmp/yaml w -i /etc/origin/node/node-config.yaml kubeletArguments.feature-gates[0] "Accelerators=true"
+      yedit:
+        src: /tmp/node-config.yaml
+        key: kubeletArguments.feature-gates
+        value:
+        - "Accelerators=true"
+
 
     - name: atomic-openshift-node restart
       command: systemctl restart atomic-openshift-node
@@ -210,12 +207,12 @@
       failed_when: "featgate.rc != 0"
 
 
-    # hack, when using nvidia-smi, only these character devices visible
-    # ls /dev/nv*
-    # /dev/nvidia0  /dev/nvidiactl
-    # after deviceQuery
-    # ls /dev/nv*
-    # /dev/nvidia0  /dev/nvidiactl  /dev/nvidia-uvm  /dev/nvidia-uvm-tools
+      # hack, when using nvidia-smi, only these character devices visible
+      # ls /dev/nv*
+      # /dev/nvidia0  /dev/nvidiactl
+      # after deviceQuery
+      # ls /dev/nv*
+      # /dev/nvidia0  /dev/nvidiactl  /dev/nvidia-uvm  /dev/nvidia-uvm-tools
     - name: Install cuda-9-0
       yum:
         name: cuda-9-0
