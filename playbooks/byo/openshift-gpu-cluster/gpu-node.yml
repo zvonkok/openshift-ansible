@@ -192,7 +192,7 @@
 
     - name: add feature-gate to node-config.yaml
       yedit:
-        src: /tmp/node-config.yaml
+        src: /etc/origin/node/node-config.yaml
         key: kubeletArguments.feature-gates
         value:
         - "Accelerators=true"
