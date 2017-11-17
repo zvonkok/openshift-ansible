@@ -1,5 +1,4 @@
 ---
-
 - name: oc label the GPUNODE
   shell: oc label node {{ item.nodename }} alpha.kubernetes.io/nvidia-gpu-name="{{item.gpuname}}" --overwrite
   with_items:

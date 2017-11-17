@@ -1,11 +1,11 @@
 ---
-- name: set fact nvgpuname for future use
-  set_fact: NV_GPU_NAME={{ "0xDEADBEEF" }}
+- block:
+    - name: Do we have a CUDA enabled instance?
+      shell: lspci | grep NVIDIA
+      register: lsnv
+      ignore_errors: yes
 
-- name: Do we have a CUDA enabled instance?
-  shell: lspci | grep NVIDIA
-  register: lsnv
-  ignore_errors: yes
+    - set_fact: valid={{ lsnv.rc }}
+    - group_by: key=gpunodes-{{ valid }}
 
-- set_fact: valid={{ lsnv.rc }}
-- group_by: key=gpunodes-{{ valid }}
+  when: fixture_get_gpu_nodes

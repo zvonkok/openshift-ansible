@@ -1,10 +1,18 @@
 ---
 - hosts: nodes
+  vars:
+    fixture_get_gpu_nodes: True
+
   roles:
     - role: openshift_all_nodes
 
 - hosts: gpunodes-0
-   roles:
+  vars:
+    fixture_get_specific_kernel_version: True
+    fixture_nvidia_container_runtime: True
+    fixture_device_query: True
+
+  roles:
      - role: openshift_gpu_nodes
 
 - hosts: masters
