@@ -3,6 +3,7 @@
     - name: check for the right kernel version
       shell: test `uname -r` == "3.10.0-693.el7.x86_64"
       register: version_check
+      ignore_errors: true
 
 
     - block:
