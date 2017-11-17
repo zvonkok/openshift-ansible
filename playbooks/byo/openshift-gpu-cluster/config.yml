@@ -1,3 +1,2 @@
 ---
-- import_playbook: gpu-node.yml
-- import_playbook: gpu-master.yml
+- import_playbook: openshift-gpu-roles.yml

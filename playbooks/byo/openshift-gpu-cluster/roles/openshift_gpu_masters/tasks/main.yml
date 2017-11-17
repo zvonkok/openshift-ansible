@@ -1,0 +1,31 @@
+---
+
+- name: oc label the GPUNODE
+  shell: oc label node {{ item.nodename }} alpha.kubernetes.io/nvidia-gpu-name="{{item.gpuname}}" --overwrite
+  with_items:
+    - "{{ gpu_nodes }}"
+
+- name: oc describe GPUNODE
+  shell: oc describe node {{ item.nodename }} | egrep -B1 'Name:|gpu:'
+  with_items:
+    - "{{ gpu_nodes }}"
+
+- name: restart atomic-openshift-node
+  shell: systemctl restart atomic-openshift-node
+  delegate_to: "{{ item.invname }}"
+  with_items:
+    - "{{ gpu_nodes }}"
+
+- name: oc describe GPUNODE
+  shell: oc describe node {{ item.nodename }} | egrep -B1 'Name:|gpu:'
+  with_items:
+    - "{{ gpu_nodes }}"
+
+- name: Upload gpu-pod.yaml to master
+  copy: src=gpu-pod.yaml dest=/tmp/gpu-pod.yaml  mode=0644
+
+- name: oc create pod
+  shell: oc create -f /tmp/gpu-pod.yaml
+
+- name: oc get pods
+  shell: oc get pods
