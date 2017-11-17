@@ -1,0 +1,6 @@
+---
+- name: bypass host loop, we only need one master
+  add_host:
+    name: "{{ inventory_hostname }}"
+    groups: lonely_master
+...

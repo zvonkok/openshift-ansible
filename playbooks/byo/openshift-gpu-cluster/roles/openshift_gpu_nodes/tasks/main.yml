@@ -1,0 +1,178 @@
+---
+- name: check for the right kernel version
+  shell: test `uname -r` == "3.10.0-693.el7.x86_64"
+  register: version_check
+
+
+- block:
+    - name: remove all old and new kernels
+      shell: |
+            for i in `rpm -q kernel`
+            do
+                rpm -e $i;
+            done
+
+    - name: Install kernel specific for CUDA
+      yum:
+        allow_downgrade: yes
+        name:  kernel-3.10.0-693.el7.x86_64
+        state: present
+
+    - name: Install kernel-devel specific for CUDA
+      yum:
+        allow_downgrade: yes
+        name:  kernel-devel-3.10.0-693.el7.x86_64
+        state: present
+
+    - name: recreate grub2 config
+      shell: grub2-mkconfig -o /boot/grub2/grub.cfg
+
+    - name: get current time
+      command: /bin/date +%s
+      register: before_reboot
+
+    - name: reboot system
+      shell: sleep 2; shutdown -r now
+      async: 1
+      poll: 0
+      ignore_errors: true
+
+    - name: waiting for server to come back
+      local_action:
+        module: wait_for
+          host    = {{ inventory_hostname }}
+          state   = started
+          port    = 22
+          delay   = 30
+          timeout = 180
+
+    - name: verify a reboot was actually initiated
+      # machine should have started after it has been rebooted
+      shell: (( `date +%s` - `awk -F . '{print $1}' /proc/uptime` > {{ before_reboot.stdout }} ))
+      sudo: false
+  when: "version_check.rc != 0"
+
+
+
+  #dkms
+- name: Install epel repo from a remote rpm
+  yum:
+    name:  https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
+    state: present
+
+- name: Install NVIDIA repo from a remote rpm
+  yum:
+    name: https://developer.download.nvidia.com/compute/cuda/repos/rhel7/x86_64/cuda-repo-rhel7-9.0.176-1.x86_64.rpm
+    state: present
+
+- name: Install xorg-x11-drv-nvidia
+  yum:
+    name: "{{ item }}"
+    state: present
+  with_items:
+    - xorg-x11-drv-nvidia
+    - xorg-x11-drv-nvidia-devel
+    - clinfo
+
+- name: create facts for GPU
+  shell: clinfo
+
+- name: Remove nouveau
+  command: modprobe -r nouveau
+
+- name: Load nvidia modules
+  command: nvidia-modprobe
+
+- name: Check for GPU support
+  command: nvidia-smi
+  register: nsmi
+  failed_when: "nsmi.rc != 0"
+
+- name: get NVIDIA GPU name
+  shell: nvidia-smi --query-gpu=gpu_name --format=csv,noheader --id=0 | sed -e 's/ /-/g'
+  register: nvgpuname
+
+- name: set fact nvgpuname for future use
+  set_fact: NV_GPU_NAME={{ nvgpuname.stdout }}
+
+- name: Add NVIDIA container repos
+  yum_repository:
+    name:          "{{ item.name }}"
+    description:   NVIDIA container (docker) YUM repo
+    file:          "{{ item.name }}"
+    baseurl:       https://nvidia.github.io/{{ item.name }}/centos7/x86_64
+    repo_gpgcheck: yes
+    gpgcheck:      no
+    gpgkey:        https://nvidia.github.io/{{ item.name }}/gpgkey
+    sslverify:     yes
+    sslcacert:     /etc/pki/tls/certs/ca-bundle.crt
+  with_items:
+    - { name: 'libnvidia-container' }
+    - { name: 'nvidia-container-runtime' }
+
+- name: Import rpm keys
+  rpm_key:
+    state=present
+    key={{ item }}
+  with_items:
+    - https://nvidia.github.io/nvidia-container-runtime/gpgkey
+    - https://nvidia.github.io/libnvidia-container/gpgkey
+
+- name: Update repo cache for the new repo
+  command: yum -q makecache -y --disablerepo=* --enablerepo={{ item }}
+  with_items:
+    - libnvidia-container
+    - nvidia-container-runtime
+
+- name: Install nvidia-container-runtime
+  yum:
+    name:  nvidia-container-runtime-0:1.0.0-1.docker1.12.6.x86_64
+    state: present
+    update_cache: yes
+
+- name: Create systemd drop-in directory for docker
+  file:
+    path: /etc/systemd/system/docker.service.d
+    state: directory
+    owner: root
+    group: root
+
+# docker segfaults when using /etc/docker/daemon.json
+# using docker drop-in ...'
+- name: Upload docker systemd drop-in
+  copy: src=add-nvidia-runtime.conf dest=/etc/systemd/system/docker.service.d/  mode=0644
+
+- name: docker restart
+  systemd:
+    state: restarted
+    daemon_reload: yes
+    name: docker
+
+- name: docker verify nvidia-runtime
+  shell: systemctl status docker | grep 'nvidia=/usr/bin/nvidia-container-runtime'
+  register: nvrt
+  failed_when: "nvrt.rc != 0"
+
+- name: atomic-openshift-node restart
+  systemd:
+    state: restarted
+    name: atomic-openshift-node
+
+- name: verify feature gate
+  shell: journalctl -u atomic-openshift-node --since="5 minutes ago" | grep feature | grep 'Accelerators:true'
+  register: featgate
+  failed_when: "featgate.rc != 0"
+  # hack, when using nvidia-smi, only these character devices visible
+  # ls /dev/nv*
+  # /dev/nvidia0  /dev/nvidiactl
+  # after deviceQuery
+  # ls /dev/nv*
+  # /dev/nvidia0  /dev/nvidiactl  /dev/nvidia-uvm  /dev/nvidia-uvm-tools
+
+- name: Install cuda-9-0
+  yum:
+    name: cuda-9-0
+    state: present
+
+- name: Run deviceQuery to have all character devices
+  shell: /usr/local/cuda-9.0/extras/demo_suite/deviceQuery
