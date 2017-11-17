@@ -1,0 +1,45 @@
+#kubeletArguments:
+#  feature-gates:
+#    - Accelerators=true
+
+apiVersion: v1
+kind: Pod
+metadata:
+  generateName: gpu-pod-
+  annotations:
+    scheduler.alpha.kubernetes.io/affinity: >
+      {
+        "nodeAffinity": {
+          "requiredDuringSchedulingIgnoredDuringExecution": {
+            "nodeSelectorTerms": [
+              {
+                "matchExpressions": [
+                  {
+                    "key": "alpha.kubernetes.io/nvidia-gpu-name",
+                    "operator": "In",
+                    "values": ["Tesla-M60"]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+spec: 
+  containers: 
+    - name: gpu-container-1
+#      securityContext:
+#      privileged: true
+      image: rhel7
+      imagePullPolicy: IfNotPresent
+      resources: 
+        limits: 
+          alpha.kubernetes.io/nvidia-gpu: 1
+#      volumeMounts:
+#      - mountPath: /usr/bin
+#        name: bin
+#      - mountPath: /usr/lib64/nvidia
+#        name: lib
+      command:
+        - sleep
+        - "infinity"

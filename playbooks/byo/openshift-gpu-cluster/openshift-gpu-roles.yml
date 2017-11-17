@@ -1,0 +1,28 @@
+---
+- hosts: nodes
+  roles:
+    - role: openshift_all_nodes
+
+- hosts: gpunodes-0
+   roles:
+     - role: openshift_gpu_nodes
+
+- hosts: masters
+  roles:
+    - role: openshift_all_masters
+
+- hosts: lonely_master
+  vars:
+    gpu_nodes: |
+      {% set res = {} %}
+      {% for host in groups['nodes'] %}
+      {% if hostvars[host]['valid'] == "0" %}
+      {% set x=res.__setitem__('nodename', hostvars[host]['ansible_nodename']) %}
+      {% set x=res.__setitem__('gpuname', hostvars[host]['NV_GPU_NAME']) %}
+      {% set x=res.__setitem__('invname', hostvars[host]['inventory_hostname']) %}
+      {% endif %}
+      {% endfor %}
+      {{ res }}
+
+  roles:
+    - role: openshift_gpu_masters
