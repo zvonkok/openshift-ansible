@@ -162,6 +162,12 @@
 
   when: fixture_nvidia_container_runtime
 
+- name: add feature-gate to node-config.yaml
+  yedit:
+    src: /etc/origin/node/node-config.yaml
+    key: kubeletArguments.feature-gates
+    value:
+    - "Accelerators=true"
 
 - name: atomic-openshift-node restart
   systemd:
