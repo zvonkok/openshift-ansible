@@ -1,7 +1,10 @@
 ---
 - block:
-    - name: Do we have a CUDA enabled instance?
-      shell: lspci | grep NVIDIA
+    - name: upload find_nvidia_display_adapter.sh
+      copy: src=find_nvidia_display_adapter.sh dest=/tmp/find_nvidia_display_adapter.sh mode=0755
+
+    - name: do we have a CUDA enabled instance?
+      shell: /tmp/find_nvidia_display_adapter.sh 0x10de
       register: lsnv
       ignore_errors: yes
 
