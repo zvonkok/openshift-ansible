@@ -59,34 +59,20 @@
 - name: set fact nvgpuname for future use
   set_fact: NV_GPU_NAME={{ "0xDEADBEEF" }}
 
-  #dkms
-- name: Install epel repo from a remote rpm
+
+- name: Get atomic
   yum:
-    name:  https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
+    name:  atomic
     state: present
 
-- name: Install NVIDIA repo from a remote rpm
-  yum:
-    name: https://developer.download.nvidia.com/compute/cuda/repos/rhel7/x86_64/cuda-repo-rhel7-9.0.176-1.x86_64.rpm
-    state: present
+- name: pull nvidia-system-container
+  shell: atomic pull --storage ostree docker.io/zvonkok/redhat:nvidia-384.81
 
-- name: Install xorg-x11-drv-nvidia
-  yum:
-    name: "{{ item }}"
-    state: present
-  with_items:
-    - xorg-x11-drv-nvidia
-    - xorg-x11-drv-nvidia-devel
-    - clinfo
+- name: install nvidia-system-container
+  shell: atomic install --system --system-package=no zvonkok/redhat:nvidia-384.81
 
-- name: create facts for GPU
-  shell: clinfo
-
-- name: Remove nouveau
-  command: modprobe -r nouveau
-
-- name: Load nvidia modules
-  command: nvidia-modprobe
+- name: eval profile.d
+  shell: /bin/bash /etc/profile.d/nvidia.sh
 
 - name: Check for GPU support
   command: nvidia-smi
@@ -101,43 +87,6 @@
   set_fact: NV_GPU_NAME={{ nvgpuname.stdout }}
 
 
-- name: add NVIDIA container repos
-  yum_repository:
-    name:          "{{ item.name }}"
-    description:   NVIDIA container (docker) YUM repo
-    file:          "{{ item.name }}"
-    baseurl:       https://nvidia.github.io/{{ item.name }}/centos7/x86_64
-    repo_gpgcheck: yes
-    gpgcheck:      no
-    gpgkey:        https://nvidia.github.io/{{ item.name }}/gpgkey
-    sslverify:     yes
-    sslcacert:     /etc/pki/tls/certs/ca-bundle.crt
-  with_items:
-    - { name: 'libnvidia-container' }
-    - { name: 'nvidia-container-runtime' }
-
-- name: import rpm keys
-  rpm_key:
-    state=present
-    key={{ item }}
-  with_items:
-    - https://nvidia.github.io/nvidia-container-runtime/gpgkey
-    - https://nvidia.github.io/libnvidia-container/gpgkey
-
-- name: update repo cache for the new repo
-  command: yum -q makecache -y --disablerepo=* --enablerepo={{ item }}
-  with_items:
-    - libnvidia-container
-    - nvidia-container-runtime
-
-- name: install nvidia-container-runtime
-  yum:
-    name:  nvidia-container-runtime-0:1.0.0-1.docker1.12.6.x86_64
-    state: present
-    update_cache: yes
-
-- name: upload nvidia-container-runtime docker hook
-  copy: src=nvidia-container-runtime dest=/usr/libexec/oci/hooks.d
 
 - name: change selinux context of /dev/nvidia*
   shell: |
@@ -160,23 +109,3 @@
   shell: journalctl -u atomic-openshift-node --since="5 minutes ago" | grep feature | grep 'Accelerators:true'
   register: featgate
   failed_when: "featgate.rc != 0"
-  # hack, when using nvidia-smi, only these character devices visible
-  # ls /dev/nv*
-  # /dev/nvidia0  /dev/nvidiactl
-  # after deviceQuery
-  # ls /dev/nv*
-  # /dev/nvidia0  /dev/nvidiactl  /dev/nvidia-uvm  /dev/nvidia-uvm-tools
-
-
-
-
-
-- block:
-    - name: Install cuda-9-0
-      yum:
-        name: cuda-9-0
-        state: present
-
-    - name: Run deviceQuery to have all character devices
-      shell: /usr/local/cuda-9.0/extras/demo_suite/deviceQuery
-  when: fixture_device_query
