@@ -1,0 +1,7 @@
+#!/bin/bash
+
+if [ $1 == "prestart" ]; then
+	PATH=/usr/bin /usr/bin/nvidia-container-runtime-hook -prestart
+fi
+
+
