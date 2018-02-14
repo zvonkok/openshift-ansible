@@ -1,7 +1,7 @@
 ---
 - block:
     - name: check for the right kernel version
-      shell: test `uname -r` == "3.10.0-693.el7.x86_64"
+      shell: test `uname -r` == "3.10.0-693.11.6.el7.x86_64"
       register: version_check
       ignore_errors: true
 
@@ -17,13 +17,13 @@
         - name: Install kernel specific for CUDA
           yum:
             allow_downgrade: yes
-            name:  kernel-3.10.0-693.el7.x86_64
+            name:  kernel-3.10.0-693.11.6.el7.x86_64
             state: present
 
         - name: Install kernel-devel specific for CUDA
           yum:
             allow_downgrade: yes
-            name:  kernel-devel-3.10.0-693.el7.x86_64
+            name:  kernel-devel-3.10.0-693.11.6.el7.x86_64
             state: present
 
         - name: recreate grub2 config
