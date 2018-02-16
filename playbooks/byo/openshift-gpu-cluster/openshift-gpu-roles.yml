@@ -11,10 +11,6 @@
 
 - hosts: gpunodes-0
   vars:
-    fixture_get_specific_kernel_version: True
-    fixture_device_query: True
-    #    fixture_nvidia_container_runtime: True
-
   roles:
      - role: openshift_gpu_nodes
 

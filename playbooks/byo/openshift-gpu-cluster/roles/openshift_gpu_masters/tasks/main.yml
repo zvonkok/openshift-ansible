@@ -1,30 +1,58 @@
 ---
+- name: checkout pod definitions for daemonset & deviceplugin
+  git:
+    repo: 'https://github.com/zvonkok/nvidia-k8s.git'
+    dest: /root/git/nvidia-k8s
+
+# - name: oc cleanup from previous install
+#   shell: |
+#     oc delete project nvidia;
+#     oc delete serviceaccount nvidia-daemonset;
+#     oc delete serviceaccount nvidia-deviceplugin;
+#     oc delete scc nvidia-daemonset;
+#     oc delete scc nvidia-deviceplugin;
+#     oc delete -f /root/git/nvidia-k8s/daemonset/daemonset.yaml;
+#     oc delete -f /root/git/nvidia-k8s/deviceplugin/nvidia-device-plugin.yml;
+#     oc delete -f /root/git/nvidia-k8s/gputest/cuda-vector-add.yaml;
+#   ignore_errors: True
+
+- name: oc new project NVIDIA
+  shell: oc new-project nvidia
+
+- name: oc create serviceaccounts
+  shell: |
+    oc create serviceaccount nvidia-daemonset
+    oc create serviceaccount nvidia-deviceplugin
+
+- name: oc create SCCs
+  shell: |
+    oc create -f /root/git/nvidia-k8s/scc/nvidia-daemonset-scc.yaml
+    oc create -f /root/git/nvidia-k8s/scc/nvidia-deviceplugin-scc.yaml
+
+- name: verify the installed SCCs
+  shell: oc get scc | grep nvidia
+
 - name: oc label the GPUNODE
-  shell: oc label node {{ item.nodename }} alpha.kubernetes.io/nvidia-gpu-name="{{item.gpuname}}" --overwrite
+  shell: oc label node {{ item.nodename }} openshift.com/gpu-accelerator="{{item.gpuname}}" --overwrite
   with_items:
     - "{{ gpu_nodes }}"
 
-- name: oc describe GPUNODE
-  shell: oc describe node {{ item.nodename }} | egrep -B1 'Name:|gpu:'
-  with_items:
-    - "{{ gpu_nodes }}"
+- name: oc create deviceplugin
+  shell:  oc create -f /root/git/nvidia-k8s/deviceplugin/nvidia-device-plugin.yml
 
-- name: restart atomic-openshift-node
-  shell: systemctl restart atomic-openshift-node
-  delegate_to: "{{ item.invname }}"
-  with_items:
-    - "{{ gpu_nodes }}"
+- name: verify deviceplugin is running
+  shell: |
+    until oc get pods | grep nvidia-device-plugin | grep Running; do sleep 1; done
 
-- name: oc describe GPUNODE
-  shell: oc describe node {{ item.nodename }} | egrep -B1 'Name:|gpu:'
-  with_items:
-    - "{{ gpu_nodes }}"
 
-- name: Upload gpu-pod.yaml to master
-  copy: src=gpu-pod.yaml dest=/tmp/gpu-pod.yaml  mode=0644
+- name: start gputest pod
+  shell: oc create -f /root/git/nvidia-k8s/gputest/cuda-vector-add.yaml
 
-- name: oc create pod
-  shell: oc create -f /tmp/gpu-pod.yaml
+- name: wait until gputest is completed
+  shell: |
+    until oc get pods | grep cuda-vector-add | grep Completed; do sleep 1; done
 
-- name: oc get pods
-  shell: oc get pods
+- name: verify that gputest passed
+  shell: oc logs cuda-vector-add | grep PASSED
+  register: cuda
+  failed_when: "cuda.rc != 0"
