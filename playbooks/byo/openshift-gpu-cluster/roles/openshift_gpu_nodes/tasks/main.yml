@@ -1,73 +1,16 @@
 ---
-- block:
-    - name: check for the right kernel version
-      shell: test `uname -r` == "3.10.0-693.11.6.el7.x86_64"
-      register: version_check
-      ignore_errors: true
-
-
-    - block:
-        - name: remove all old and new kernels
-          shell: |
-                for i in `rpm -q kernel`
-                do
-                    rpm -e $i;
-                done
-
-        - name: Install kernel specific for CUDA
-          yum:
-            allow_downgrade: yes
-            name:  kernel-3.10.0-693.11.6.el7.x86_64
-            state: present
-
-        - name: Install kernel-devel specific for CUDA
-          yum:
-            allow_downgrade: yes
-            name:  kernel-devel-3.10.0-693.11.6.el7.x86_64
-            state: present
-
-        - name: recreate grub2 config
-          shell: grub2-mkconfig -o /boot/grub2/grub.cfg
-
-        - name: get current time
-          command: /bin/date +%s
-          register: before_reboot
-
-        - name: reboot system
-          shell: sleep 2; shutdown -r now
-          async: 1
-          poll: 0
-          ignore_errors: true
-
-        - name: waiting for server to come back
-          local_action:
-            module: wait_for
-              host    = {{ inventory_hostname }}
-              state   = started
-              port    = 22
-              delay   = 30
-              timeout = 180
-
-        - name: verify a reboot was actually initiated
-          # machine should have started after it has been rebooted
-          shell: (( `date +%s` - `awk -F . '{print $1}' /proc/uptime` > {{ before_reboot.stdout }} ))
-          sudo: false
-      when: "version_check.rc != 0"
-  when: fixture_get_specific_kernel_version
-
-
 - name: set fact nvgpuname for future use
   set_fact: NV_GPU_NAME={{ "0xDEADBEEF" }}
 
   #dkms
-- name: Install epel repo from a remote rpm
+- name: Install epel repo from a remote rpm for dkms
   yum:
     name:  https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
     state: present
 
 - name: Install NVIDIA repo from a remote rpm
   yum:
-    name: https://developer.download.nvidia.com/compute/cuda/repos/rhel7/x86_64/cuda-repo-rhel7-9.0.176-1.x86_64.rpm
+    name: https://developer.download.nvidia.com/compute/cuda/repos/rhel7/x86_64/cuda-repo-rhel7-9.1.85-1.x86_64.rpm
     state: present
 
 - name: Install xorg-x11-drv-nvidia
@@ -87,6 +30,9 @@
 
 - name: Load nvidia modules
   command: nvidia-modprobe
+
+- name: Load nvidia-uvm module
+  command: nvidia-modprobe -u
 
 - name: Check for GPU support
   command: nvidia-smi
@@ -132,24 +78,31 @@
 
 - name: install nvidia-container-runtime
   yum:
-    name:  nvidia-container-runtime-0:1.0.0-1.docker1.12.6.x86_64
+    name: nvidia-container-runtime-1.1.1-1.docker1.13.1.x86_64
     state: present
     update_cache: yes
 
-- name: upload nvidia-container-runtime docker hook
+- name: upload the nvidia-hook to the right location
   copy: src=nvidia-container-runtime dest=/usr/libexec/oci/hooks.d
+
+- name: make the hook executable
+  shell: chmod +x /usr/libexec/oci/hooks.d/nvidia-container-runtime
+
+
 
 - name: change selinux context of /dev/nvidia*
   shell: |
-    chcon -t svirt_sandbox_file_t  /dev/nvidia*
-    chcon -u system_u              /dev/nvidia*
+    chcon -t container_file_t  /dev/nvidia*
+    chcon -t container_file_t  /usr/lib64/nvidia/libnvidia*
+    chcon -t container_file_t  /usr/bin/nvidia-*
+
 
 - name: add feature-gate to node-config.yaml
   yedit:
     src: /etc/origin/node/node-config.yaml
     key: kubeletArguments.feature-gates
     value:
-    - "Accelerators=true"
+    - "DevicePlugins=true"
 
 - name: atomic-openshift-node restart
   systemd:
@@ -157,26 +110,6 @@
     name: atomic-openshift-node
 
 - name: verify feature gate
-  shell: journalctl -u atomic-openshift-node --since="5 minutes ago" | grep feature | grep 'Accelerators:true'
+  shell: journalctl -u atomic-openshift-node --since="5 minutes ago" | grep feature | grep 'DevicePlugins'
   register: featgate
   failed_when: "featgate.rc != 0"
-  # hack, when using nvidia-smi, only these character devices visible
-  # ls /dev/nv*
-  # /dev/nvidia0  /dev/nvidiactl
-  # after deviceQuery
-  # ls /dev/nv*
-  # /dev/nvidia0  /dev/nvidiactl  /dev/nvidia-uvm  /dev/nvidia-uvm-tools
-
-
-
-
-
-- block:
-    - name: Install cuda-9-0
-      yum:
-        name: cuda-9-0
-        state: present
-
-    - name: Run deviceQuery to have all character devices
-      shell: /usr/local/cuda-9.0/extras/demo_suite/deviceQuery
-  when: fixture_device_query
