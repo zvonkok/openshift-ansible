@@ -1,4 +1,12 @@
 ---
+- name: get the correct kernel-devel version from running kernel
+  shell: echo kernel-devel-`uname -r`
+  register: kernel_version
+
+- name: try to install the same kernel-devel version as running kernel
+  yum:
+    name: "{{ kernel_version.stdout }}"
+
 - name: set fact nvgpuname for future use
   set_fact: NV_GPU_NAME={{ "0xDEADBEEF" }}
 
