@@ -15,8 +15,7 @@ openshift_docker_service_name: "{{ 'container-engine' if (openshift_docker_use_s
 
 openshift_docker_hosted_registry_insecure: False  # bool
 
-openshift_docker_hosted_registry_network_default: "{{ openshift_portal_net | default(False) }}"
-openshift_docker_hosted_registry_network: "{{ openshift_docker_hosted_registry_network_default }}"
+openshift_docker_hosted_registry_network: "{{ openshift.common.portal_net }}"
 
 openshift_docker_additional_registries: []
 openshift_docker_blocked_registries: []
@@ -145,3 +144,6 @@ l_docker_image_default: "{{ l_docker_image_prepend }}:{{ l_docker_image_tag }}"
 l_docker_image: "{{ openshift_docker_systemcontainer_image_override | default(l_docker_image_default) }}"
 
 l_is_node_system_container: "{{ (openshift_use_node_system_container | default(openshift_use_system_containers | default(false)) | bool) }}"
+
+l_crio_use_new_var_sock: "{{  (l_openshift_image_tag == 'latest') or (l_openshift_image_tag | version_compare('3.9', '>='))  | bool }}"
+l_crio_var_sock: "{{ l_crio_use_new_var_sock | ternary('/var/run/crio/crio.sock', '/var/run/crio.sock') }}"
