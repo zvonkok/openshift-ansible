@@ -11,10 +11,11 @@
   set_fact: NV_GPU_NAME={{ "0xDEADBEEF" }}
 
   #dkms
-- name: Install epel repo from a remote rpm for dkms
+- name: Install epel/cuda repo from a remote rpm
   yum:
     name:  https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
     state: present
+
 
 - name: Install NVIDIA repo from a remote rpm
   yum:
@@ -98,7 +99,7 @@
 
 
 
-- name: change selinux context of /dev/nvidia*
+- name: change selinux context of nvidia files
   shell: |
     chcon -t container_file_t  /dev/nvidia*
     chcon -t container_file_t  /usr/lib64/nvidia/libnvidia*
