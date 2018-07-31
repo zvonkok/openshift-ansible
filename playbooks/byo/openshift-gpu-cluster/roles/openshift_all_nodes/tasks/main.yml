@@ -8,7 +8,7 @@
       register: lsnv
       ignore_errors: yes
 
-    - set_fact: valid={{ lsnv.rc }}
+    - set_fact: valid={{ lsnv.stdout }}
     - group_by: key=gpunodes-{{ valid }}
 
   when: fixture_get_gpu_nodes

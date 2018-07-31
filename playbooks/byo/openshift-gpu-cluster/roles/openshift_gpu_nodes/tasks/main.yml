@@ -7,11 +7,7 @@
   yum:
     name: "{{ kernel_version.stdout }}"
 
-- name: set fact nvgpuname for future use
-  set_fact: NV_GPU_NAME={{ "0xDEADBEEF" }}
-
-  #dkms
-- name: Install epel/cuda repo from a remote rpm
+- name: Install epel repo from a remote rpm
   yum:
     name:  https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
     state: present
@@ -29,31 +25,6 @@
   with_items:
     - xorg-x11-drv-nvidia
     - xorg-x11-drv-nvidia-devel
-    - clinfo
-
-- name: create facts for GPU
-  shell: clinfo
-
-- name: Remove nouveau
-  command: modprobe -r nouveau
-
-- name: Load nvidia modules
-  command: nvidia-modprobe
-
-- name: Load nvidia-uvm module
-  command: nvidia-modprobe -u
-
-- name: Check for GPU support
-  command: nvidia-smi
-  register: nsmi
-  failed_when: "nsmi.rc != 0"
-
-- name: get NVIDIA GPU name
-  shell: nvidia-smi --query-gpu=gpu_name --format=csv,noheader --id=0 | sed -e 's/ /-/g'
-  register: nvgpuname
-
-- name: set fact nvgpuname for future use
-  set_fact: NV_GPU_NAME={{ nvgpuname.stdout }}
 
 
 - name: add NVIDIA container repos
@@ -85,25 +56,64 @@
     - libnvidia-container
     - nvidia-container-runtime
 
-- name: install nvidia-container-runtime
+- name: install nvidia-container-runtime-hook
   yum:
-    name: nvidia-container-runtime-1.1.1-1.docker1.13.1.x86_64
+    name: nvidia-container-runtime-hook
     state: present
     update_cache: yes
 
-- name: upload the nvidia-hook to the right location
-  copy: src=nvidia-container-runtime dest=/usr/libexec/oci/hooks.d
+- name: create docker hook
+  blockinfile:
+    path: /usr/libexec/oci/hooks.d/oci-nvidia-hook
+    block: |
+      #!/bin/bash
+          /usr/bin/nvidia-container-runtime-hook $1
+    create: yes
+
+- name: create cri-o hook
+  blockinfile:
+    path: /usr/share/containers/oci/hooks.d/oci-nvidia-hook.json
+    block: |
+      {
+          "hook": "/usr/bin/nvidia-container-runtime-hook",
+          "stage": [ "prestart" ]
+      }
+    create: yes
+
 
 - name: make the hook executable
-  shell: chmod +x /usr/libexec/oci/hooks.d/nvidia-container-runtime
+  file:
+    path: /usr/libexec/oci/hooks.d/oci-nvidia-hook
+    mode: 0755
 
+- name: Remove nouveau
+  command: modprobe -r nouveau
 
+- name: Load nvidia modules
+  command: nvidia-modprobe
+
+- name: Load nvidia-uvm module
+  command: nvidia-modprobe -u
+
+- name: Check for GPU support
+  command: nvidia-smi
+  register: nsmi
+  failed_when: "nsmi.rc != 0"
+
+- name: set fact nvgpuname for future use
+  set_fact: NV_GPU_NAME={{ "0xDEADBEEF" }}
+
+- name: get NVIDIA GPU name
+  shell: nvidia-smi --query-gpu=gpu_name --format=csv,noheader --id=0 | sed -e 's/ /-/g'
+  register: nvgpuname
 
 - name: change selinux context of nvidia files
   shell: |
     chcon -t container_file_t  /dev/nvidia*
-    chcon -t container_file_t  /usr/lib64/nvidia/libnvidia*
-    chcon -t container_file_t  /usr/bin/nvidia-*
+
+
+- name: set fact nvgpuname for future use
+  set_fact: NV_GPU_NAME={{ nvgpuname.stdout }}
 
 
 - name: add feature-gate to node-config.yaml
