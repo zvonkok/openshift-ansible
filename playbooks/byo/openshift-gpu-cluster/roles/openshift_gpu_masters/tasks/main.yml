@@ -1,8 +1,8 @@
 ---
 - name: checkout pod definitions for daemonset & deviceplugin
   git:
-    repo: 'https://github.com/zvonkok/nvidia-k8s.git'
-    dest: /root/git/nvidia-k8s
+    repo: 'https://github.com/redhat-performance/openshift-psap'
+    dest: /root/git/openshift-psap
 
 # - name: oc cleanup from previous install
 #   shell: |
@@ -21,13 +21,11 @@
 
 - name: oc create serviceaccounts
   shell: |
-    oc create serviceaccount nvidia-daemonset
     oc create serviceaccount nvidia-deviceplugin
 
 - name: oc create SCCs
   shell: |
-    oc create -f /root/git/nvidia-k8s/scc/nvidia-daemonset-scc.yaml
-    oc create -f /root/git/nvidia-k8s/scc/nvidia-deviceplugin-scc.yaml
+    oc create -f /root/git/openshift-psap/blog/gpu/device-plugin/nvidia-deviceplugin-scc.yaml
 
 - name: verify the installed SCCs
   shell: oc get scc | grep nvidia
@@ -38,7 +36,7 @@
     - "{{ gpu_nodes }}"
 
 - name: oc create deviceplugin
-  shell:  oc create -f /root/git/nvidia-k8s/deviceplugin/nvidia-device-plugin.yml
+  shell:  oc create -f /root/git/openshift-psap/blog/gpu/device-plugin/nvidia-deviceplugin.yaml
 
 - name: verify deviceplugin is running
   shell: |
@@ -46,7 +44,7 @@
 
 
 - name: start gputest pod
-  shell: oc create -f /root/git/nvidia-k8s/gputest/cuda-vector-add.yaml
+  shell: oc create -f /root/git/openshift-psap/blog/gpu/device-plugin/cuda-vector-add.yaml
 
 - name: wait until gputest is completed
   shell: |

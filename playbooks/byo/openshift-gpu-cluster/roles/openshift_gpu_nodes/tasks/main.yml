@@ -15,7 +15,7 @@
 
 - name: Install NVIDIA repo from a remote rpm
   yum:
-    name: https://developer.download.nvidia.com/compute/cuda/repos/rhel7/x86_64/cuda-repo-rhel7-9.1.85-1.x86_64.rpm
+    name: https://developer.download.nvidia.com/compute/cuda/repos/rhel7/x86_64/cuda-repo-rhel7-9.2.88-1.x86_64.rpm 
     state: present
 
 - name: Install xorg-x11-drv-nvidia
@@ -63,12 +63,13 @@
     update_cache: yes
 
 - name: create docker hook
-  blockinfile:
-    path: /usr/libexec/oci/hooks.d/oci-nvidia-hook
-    block: |
-      #!/bin/bash
-          /usr/bin/nvidia-container-runtime-hook $1
+  lineinfile:
+    dest: /usr/libexec/oci/hooks.d/oci-nvidia-hook
+    line: '{{ item }}'
     create: yes
+  with_items:
+    - '#!/bin/bash'
+    - '/usr/bin/nvidia-container-runtime-hook $1'
 
 - name: create cri-o hook
   blockinfile:
@@ -114,21 +115,3 @@
 
 - name: set fact nvgpuname for future use
   set_fact: NV_GPU_NAME={{ nvgpuname.stdout }}
-
-
-- name: add feature-gate to node-config.yaml
-  yedit:
-    src: /etc/origin/node/node-config.yaml
-    key: kubeletArguments.feature-gates
-    value:
-    - "DevicePlugins=true"
-
-- name: atomic-openshift-node restart
-  systemd:
-    state: restarted
-    name: atomic-openshift-node
-
-- name: verify feature gate
-  shell: journalctl -u atomic-openshift-node --since="5 minutes ago" | grep feature | grep 'DevicePlugins'
-  register: featgate
-  failed_when: "featgate.rc != 0"
