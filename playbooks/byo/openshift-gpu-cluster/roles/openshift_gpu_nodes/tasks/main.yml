@@ -9,22 +9,21 @@
 
 - name: Install epel repo from a remote rpm
   yum:
-    name:  https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
+    name:  "{{ epel_repo }}"
     state: present
 
 
 - name: Install NVIDIA repo from a remote rpm
   yum:
-    name: https://developer.download.nvidia.com/compute/cuda/repos/rhel7/x86_64/cuda-repo-rhel7-9.1.85-1.x86_64.rpm
+    name: "{{ cuda_repo }}"
     state: present
 
-- name: Install xorg-x11-drv-nvidia
+- name: Install nvidia-driver
   yum:
     name: "{{ item }}"
     state: present
   with_items:
-    - xorg-x11-drv-nvidia
-    - xorg-x11-drv-nvidia-devel
+    "{{ nvidia_driver_rpms }}"
 
 
 - name: add NVIDIA container repos
@@ -62,30 +61,6 @@
     state: present
     update_cache: yes
 
-- name: create docker hook
-  blockinfile:
-    path: /usr/libexec/oci/hooks.d/oci-nvidia-hook
-    block: |
-      #!/bin/bash
-          /usr/bin/nvidia-container-runtime-hook $1
-    create: yes
-
-- name: create cri-o hook
-  blockinfile:
-    path: /usr/share/containers/oci/hooks.d/oci-nvidia-hook.json
-    block: |
-      {
-          "hook": "/usr/bin/nvidia-container-runtime-hook",
-          "stage": [ "prestart" ]
-      }
-    create: yes
-
-
-- name: make the hook executable
-  file:
-    path: /usr/libexec/oci/hooks.d/oci-nvidia-hook
-    mode: 0755
-
 - name: Remove nouveau
   command: modprobe -r nouveau
 
@@ -107,28 +82,14 @@
   shell: nvidia-smi --query-gpu=gpu_name --format=csv,noheader --id=0 | sed -e 's/ /-/g'
   register: nvgpuname
 
-- name: change selinux context of nvidia files
-  shell: |
-    chcon -t container_file_t  /dev/nvidia*
-
-
 - name: set fact nvgpuname for future use
   set_fact: NV_GPU_NAME={{ nvgpuname.stdout }}
 
+- name: restorecon var lib kubelet
+  shell: restorecon -R -v /var/lib/kubelet
 
-- name: add feature-gate to node-config.yaml
-  yedit:
-    src: /etc/origin/node/node-config.yaml
-    key: kubeletArguments.feature-gates
-    value:
-    - "DevicePlugins=true"
+- name: restorecon dev
+  shell: restorecon -R -v /dev
 
-- name: atomic-openshift-node restart
-  systemd:
-    state: restarted
-    name: atomic-openshift-node
-
-- name: verify feature gate
-  shell: journalctl -u atomic-openshift-node --since="5 minutes ago" | grep feature | grep 'DevicePlugins'
-  register: featgate
-  failed_when: "featgate.rc != 0"
+- name: restorecon nvidia-container-files
+  shell: nvidia-container-cli -k list | restorecon -v -f -

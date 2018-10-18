@@ -1,44 +1,17 @@
 ---
 - name: checkout pod definitions for daemonset & deviceplugin
   git:
-    repo: 'https://github.com/zvonkok/nvidia-k8s.git'
-    dest: /root/git/nvidia-k8s
+    repo: 'https://github.com/zvonkok/origin-ci-gpu.git'
+    dest: /root/origin-ci-gpu
 
-# - name: oc cleanup from previous install
-#   shell: |
-#     oc delete project nvidia;
-#     oc delete serviceaccount nvidia-daemonset;
-#     oc delete serviceaccount nvidia-deviceplugin;
-#     oc delete scc nvidia-daemonset;
-#     oc delete scc nvidia-deviceplugin;
-#     oc delete -f /root/git/nvidia-k8s/daemonset/daemonset.yaml;
-#     oc delete -f /root/git/nvidia-k8s/deviceplugin/nvidia-device-plugin.yml;
-#     oc delete -f /root/git/nvidia-k8s/gputest/cuda-vector-add.yaml;
-#   ignore_errors: True
+- name: load selinux policy
+  shell: semodule -i /root/origin-ci-gpu/selinux/nvidia-container.pp
 
 - name: oc new project NVIDIA
   shell: oc new-project nvidia
 
-- name: oc create serviceaccounts
-  shell: |
-    oc create serviceaccount nvidia-daemonset
-    oc create serviceaccount nvidia-deviceplugin
-
-- name: oc create SCCs
-  shell: |
-    oc create -f /root/git/nvidia-k8s/scc/nvidia-daemonset-scc.yaml
-    oc create -f /root/git/nvidia-k8s/scc/nvidia-deviceplugin-scc.yaml
-
-- name: verify the installed SCCs
-  shell: oc get scc | grep nvidia
-
-- name: oc label the GPUNODE
-  shell: oc label node {{ item.nodename }} openshift.com/gpu-accelerator="{{item.gpuname}}" --overwrite
-  with_items:
-    - "{{ gpu_nodes }}"
-
 - name: oc create deviceplugin
-  shell:  oc create -f /root/git/nvidia-k8s/deviceplugin/nvidia-device-plugin.yml
+  shell:  oc create -f /root/origin-ci-gpu/nvidia/nvidia-device-plugin.yml
 
 - name: verify deviceplugin is running
   shell: |
@@ -46,7 +19,7 @@
 
 
 - name: start gputest pod
-  shell: oc create -f /root/git/nvidia-k8s/gputest/cuda-vector-add.yaml
+  shell: oc create -f /root/origin-ci-gpu/nvidia/cuda-vector-add.yaml
 
 - name: wait until gputest is completed
   shell: |
