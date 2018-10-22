@@ -2,7 +2,22 @@
 epel_repo: https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
 cuda_repo: https://developer.download.nvidia.com/compute/cuda/repos/rhel7/x86_64/cuda-repo-rhel7-10.0.130-1.x86_64.rpm
 
+repos:
+  - "{{ epel_repo }}"
+  - "{{ cuda_repo }}"
+
 nvidia_driver_rpms:
   - nvidia-driver
   - nvidia-driver-cuda
   - nvidia-modprobe
+
+nvidia_kernel_modules:
+  - nvidia
+  - nvidia_drm
+  - nvidia_modeset
+  - nvidia_uvm
+
+
+origin_ci_gpu_root: /root/origin-ci-gpu
+
+openshift_project: nvidia

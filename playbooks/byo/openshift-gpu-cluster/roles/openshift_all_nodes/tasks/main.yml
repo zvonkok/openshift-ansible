@@ -12,3 +12,9 @@
     - group_by: key=gpunodes-{{ valid }}
 
   when: fixture_get_gpu_nodes
+
+
+
+# DEPLOY NODE feature discovery6
+#oc adm policy add-scc-to-user hostnetwork -n default -z node-feature-discovery
+#oc adm policy add-scc-to-user anyuid -n default -z node-feature-discovery

@@ -7,20 +7,12 @@
   yum:
     name: "{{ kernel_version.stdout }}"
 
-- name: Install epel repo from a remote rpm
+- name: Install epel + cuda repo from a remote rpm
   yum:
-    name:  "{{ epel_repo }}"
+    name: "{{ item }}"
     state: present
-
-
-- name: Install NVIDIA repo from a remote rpm
-  yum:
-<<<<<<< HEAD
-    name: "{{ cuda_repo }}"
-=======
-    name: https://developer.download.nvidia.com/compute/cuda/repos/rhel7/x86_64/cuda-repo-rhel7-9.2.88-1.x86_64.rpm
->>>>>>> bf471f17ca86be2ca3a68d47bd9f20728fb263ab
-    state: present
+  with_items:
+    "{{ repos }}"
 
 - name: Install nvidia-driver
   yum:
@@ -28,7 +20,6 @@
     state: present
   with_items:
     "{{ nvidia_driver_rpms }}"
-
 
 - name: add NVIDIA container repos
   yum_repository:
@@ -66,10 +57,16 @@
     update_cache: yes
 
 - name: Remove nouveau
-  command: modprobe -r nouveau
+  modprobe:
+    name: nouveau
+    state: absent
 
 - name: Load nvidia modules
-  command: nvidia-modprobe
+  modprobe:
+    name: "{{ item }}"
+    state: present
+  with_items:
+    "{{ nvidia_kernel_modules }}"
 
 - name: Load nvidia-uvm module
   command: nvidia-modprobe -u
@@ -97,3 +94,11 @@
 
 - name: restorecon nvidia-container-files
   shell: nvidia-container-cli -k list | restorecon -v -f -
+
+- name: checkout pod definitions for daemonset & deviceplugin
+  git:
+    repo: 'https://github.com/zvonkok/origin-ci-gpu.git'
+    dest: /root/origin-ci-gpu
+
+- name: load selinux policy
+  shell: semodule -i /root/origin-ci-gpu/selinux/nvidia-container.pp

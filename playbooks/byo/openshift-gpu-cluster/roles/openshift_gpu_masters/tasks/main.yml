@@ -2,30 +2,29 @@
 - name: checkout pod definitions for daemonset & deviceplugin
   git:
     repo: 'https://github.com/zvonkok/origin-ci-gpu.git'
-    dest: /root/origin-ci-gpu
+    dest: "{{ origin_ci_gpu_root }}"
 
-- name: load selinux policy
-  shell: semodule -i /root/origin-ci-gpu/selinux/nvidia-container.pp
-
-- name: oc new project NVIDIA
-  shell: oc new-project nvidia
+- name: oc check project nvidia
+  oc_project:
+    name: "{{ openshift_project }}"
+    state: present
 
 - name: oc create deviceplugin
-  shell:  oc create -f /root/origin-ci-gpu/nvidia/nvidia-device-plugin.yml
+  shell:  oc create -f {{ origin_ci_gpu_root }}/nvidia/nvidia-device-plugin.yml
 
 - name: verify deviceplugin is running
   shell: |
-    until oc get pods | grep nvidia-device-plugin | grep Running; do sleep 1; done
-
+    until oc get pods -n kube-system | grep nvidia-device-plugin | grep Running; do sleep 1; done
 
 - name: start gputest pod
-  shell: oc create -f /root/git/openshift-psap/blog/gpu/device-plugin/cuda-vector-add.yaml
+  shell: oc create -f {{ origin_ci_gpu_root }}/nvidia/cuda-vector-add.yaml
 
 - name: wait until gputest is completed
   shell: |
-    until oc get pods | grep cuda-vector-add | grep Completed; do sleep 1; done
+    until oc get pods -n {{ openshift_project }} | grep cuda-vector-add | grep Completed; do sleep 1; done
+
 
 - name: verify that gputest passed
-  shell: oc logs cuda-vector-add | grep PASSED
+  shell: oc logs cuda-vector-add -n {{ openshift_project }} | grep PASSED
   register: cuda
   failed_when: "cuda.rc != 0"
