@@ -19,7 +19,7 @@
 
 
 - name: start gputest pod
-  shell: oc create -f /root/origin-ci-gpu/nvidia/cuda-vector-add.yaml
+  shell: oc create -f /root/git/openshift-psap/blog/gpu/device-plugin/cuda-vector-add.yaml
 
 - name: wait until gputest is completed
   shell: |

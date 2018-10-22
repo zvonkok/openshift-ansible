@@ -15,7 +15,11 @@
 
 - name: Install NVIDIA repo from a remote rpm
   yum:
+<<<<<<< HEAD
     name: "{{ cuda_repo }}"
+=======
+    name: https://developer.download.nvidia.com/compute/cuda/repos/rhel7/x86_64/cuda-repo-rhel7-9.2.88-1.x86_64.rpm
+>>>>>>> bf471f17ca86be2ca3a68d47bd9f20728fb263ab
     state: present
 
 - name: Install nvidia-driver
