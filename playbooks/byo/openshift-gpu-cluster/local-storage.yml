@@ -1,0 +1,8 @@
+---
+- hosts: masters
+  roles:
+    - role: openshift_all_masters
+
+- hosts: lonely_master
+  roles:
+    - role: local_storage

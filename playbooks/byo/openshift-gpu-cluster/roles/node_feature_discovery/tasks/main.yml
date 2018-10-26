@@ -1,0 +1,42 @@
+---
+- name: get jq
+  yum:
+    name: jq
+    state: present
+
+- name: checkout pod definitions for daemonset & deviceplugin
+  git:
+    repo: "{{ origin_ci_gpu_git }}"
+    dest: "{{ origin_ci_gpu_root }}"
+
+- name: check for oc project
+  oc_project:
+    name: "{{ openshift_project }}"
+    state: present
+
+
+- name: create rbac
+  shell: |
+    if [ $(oc get serviceaccount -n node-feature-discovery -o json | jq '.items' | jq length) -eq 0 ]; then
+        oc create -n {{ openshift_project }} -f {{ node_feature_discovery_rbac }}
+    fi
+  register: rbac
+  changed_when: rbac.stdout != ''
+
+- name: create scc
+  shell: |
+    oc get scc node-feature-discovery >/dev/null 2>&1
+    ret=$?
+    if [ $ret -ne 0 ]; then
+        oc create -n {{ openshift_project }} -f {{ node_feature_discovery_scc }}
+    fi
+  register: scc
+  changed_when: scc.stdout != ''
+
+- name: create daemonset
+  shell: |
+    if [ $(oc get ds -n node-feature-discovery -o json | jq '.items' | jq length) -eq 0 ]; then
+        oc create -n {{ openshift_project }} -f {{ node_feature_discovery_daemonset }}
+    fi
+  register: daemonset
+  changed_when: daemonset.stdout != ''

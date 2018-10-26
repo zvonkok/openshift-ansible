@@ -32,4 +32,4 @@
       {{ res }}
 
   roles:
-    - role: openshift_gpu_masters
+    - role: device-plugin

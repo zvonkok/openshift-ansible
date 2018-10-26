@@ -1,0 +1,52 @@
+---
+- name: checkout pod definitions for daemonset & deviceplugin
+  git:
+    repo: 'https://github.com/zvonkok/origin-ci-gpu.git'
+    dest: "{{ origin_ci_gpu_root }}"
+
+- name: oc check project nvidia
+  command: >
+    oc new-project "{{ openshift_project }}"
+  register: project_nvidia
+  changed_when: "'already exists' not in project_nvidia.stderr"
+  failed_when:
+  - "'already exists' not in project_nvidia.stderr"
+  - "project_nvidia.rc != 0"
+
+
+- name: oc create deviceplugin
+  shell: |
+    oc get ds nvidia-device-plugin-daemonset -n kube-system -o json >/dev/null 2>&1
+    RET=$?
+
+    if [ $RET -ne 0 ]; then
+        oc create -f {{ origin_ci_gpu_root }}/{{ openshift_project }}/nvidia-device-plugin.yml
+    fi
+  register: daemonset
+  changed_when: daemonset.stdout != ''
+
+
+- name: verify deviceplugin is running
+  shell: |
+    until oc get pods -n kube-system | grep nvidia-device-plugin | grep Running; do sleep 1; done
+
+- name: start gputest pod
+  shell: |
+    oc get pod cuda-vector-add -n nvidia >/dev/null 2>&1
+    RET=$?
+
+    if [ $RET -ne 0 ]; then
+        oc create -n {{ openshift_project }} -f {{ origin_ci_gpu_root }}/nvidia/cuda-vector-add.yaml
+    fi
+  register: cuda_vector_add
+  changed_when: cuda_vector_add.stdout != ''
+
+- name: wait until gputest is completed
+  shell: |
+    until oc get pods -n {{ openshift_project }} | grep cuda-vector-add | grep Completed; do sleep 1; done
+
+
+- name: verify that gputest passed
+  shell: oc logs cuda-vector-add -n {{ openshift_project }} | grep PASSED
+  register: cuda
+  failed_when: "cuda.rc != 0"

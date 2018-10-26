@@ -1,0 +1,16 @@
+---
+- hosts: nodes
+  vars:
+    fixture_get_gpu_nodes:  True
+    nv_pci_vendor_id:       0x10de
+    pci_base_class_display: 0x030000
+    pci_base_class_mask:    0xff0000
+
+  roles:
+    - role: openshift_all_nodes
+
+- hosts: gpunodes-0
+  vars:
+  roles:
+     - role: openshift_gpu_nodes
+...

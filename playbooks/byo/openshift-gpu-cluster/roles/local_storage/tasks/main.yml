@@ -1,0 +1,67 @@
+---
+- name: create local-storage dirs
+  file:
+    path: "{{ item }}"
+    state: directory
+  with_items:
+    - "{{ local_storage_dir }}"
+
+
+- name: oc check project local_storage
+  oc_project:
+    name: "{{ openshift_project }}"
+
+- name: oc create local storage config map
+  command: >
+    oc create -n {{ openshift_project }} -f {{ local_storage_cm }}
+  register: ls_config_map
+  changed_when: "'already exists' not in ls_config_map.stderr"
+  failed_when:
+  - "'already exists' not in ls_config_map.stderr"
+  - "ls_config_map.rc != 0"
+
+- name: oc create serviceaccount local-storage-admin
+  oc_serviceaccount:
+    name: "{{ local_storage_sa }}"
+    namespace: "{{ openshift_project }}"
+
+- name: oc adm policy add-scc-to-user privileged -z local-storage-admin
+  oc_adm_policy_user:
+    user: system:serviceaccount:{{ openshift_project }}:{{ local_storage_sa }}
+    namespace: "{{ openshift_project }}"
+    resource_kind: scc
+    resource_name: privileged
+    state: present
+
+- name: oc create local-storage template
+  command: >
+    oc create -n {{ openshift_project }} -f {{ provisioner_template }}
+  register: ls_template
+  changed_when: "'already exists' not in ls_template.stderr"
+  failed_when:
+  - "'already exists' not in ls_template.stderr"
+  - "ls_template.rc != 0"
+
+
+- name: deploy local-storage-provisioner
+  command: >
+    oc new-app -p CONFIGMAP=local-volume-config
+    -p SERVICE_ACCOUNT={{ local_storage_sa }}
+    -p NAMESPACE={{ openshift_project }}
+    -p PROVISIONER_IMAGE={{ provisioner_image }} local-storage-provisioner
+  register: deploy_local_provisioner
+  changed_when: "'already exists' not in deploy_local_provisioner.stderr"
+  failed_when:
+  - "'already exists' not in deploy_local_provisioner.stderr"
+  - "deploy_local_provisioner.rc != 0"
+
+- name: oc create storage-classes
+  command: >
+    oc create -n local-storage -f {{ item }}
+  with_items:
+    - "{{ storage_class }}"
+  register: storage_class
+  changed_when: "'already exists' not in storage_class.stderr"
+  failed_when:
+  - "'already exists' not in storage_class.stderr"
+  - "storage_class.rc != 0"

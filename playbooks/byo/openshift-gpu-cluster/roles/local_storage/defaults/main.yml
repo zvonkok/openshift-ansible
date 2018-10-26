@@ -1,0 +1,18 @@
+---
+origin_ci_gpu_root: /root/origin-ci-gpu
+
+openshift_project: local-storage
+local_storage_sa:  local-storage-admin
+
+local_storage_cm:  "{{ origin_ci_gpu_root }}/{{ openshift_project }}/local-storage-provisioner-configmap.yml"
+
+provisioner_image: registry.redhat.io/openshift3/local-storage-provisioner:v3.11
+provisioner_template: "{{ origin_ci_gpu_root }}/{{ openshift_project }}/local-storage-provisioner-template.yaml"
+
+local_storage_dir:
+  - /mnt/local-storage/ssd
+  - /mnt/local-storage/hdd
+
+storage_class:
+  - "{{ origin_ci_gpu_root }}/{{ openshift_project }}/storage-class-ssd.yaml"
+  - "{{ origin_ci_gpu_root }}/{{ openshift_project }}/storage-class-hdd.yaml"

@@ -1,0 +1,9 @@
+---
+origin_ci_gpu_git:  https://github.com/zvonkok/origin-ci-gpu.git
+origin_ci_gpu_root: /root/origin-ci-gpu
+
+openshift_project:  node-feature-discovery
+
+node_feature_discovery_rbac: "{{ origin_ci_gpu_root }}/{{ openshift_project }}/rbac.yml"
+node_feature_discovery_scc:  "{{ origin_ci_gpu_root }}/{{ openshift_project }}/node-feature-discovery-scc.yml"
+node_feature_discovery_daemonset: "{{ origin_ci_gpu_root }}/{{ openshift_project }}/node-feature-discovery-daemonset.yml"
