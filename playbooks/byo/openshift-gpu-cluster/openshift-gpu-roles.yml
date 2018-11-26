@@ -12,7 +12,7 @@
 - hosts: gpunodes-0
   vars:
   roles:
-     - role: openshift_gpu_nodes
+     - role: nvidia-driver
 
 - hosts: masters
   roles:
@@ -32,5 +32,4 @@
       {{ res }}
 
   roles:
-    - role: nvidia-driver
     - role: device-plugin
