@@ -32,4 +32,5 @@
       {{ res }}
 
   roles:
+    - role: nvidia-driver
     - role: device-plugin
