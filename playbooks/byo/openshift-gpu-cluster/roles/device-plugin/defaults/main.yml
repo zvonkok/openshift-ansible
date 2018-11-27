@@ -1,1 +1,4 @@
-../../openshift_gpu_nodes/defaults/main.yml
+---
+origin_ci_gpu_root: /root/origin-ci-gpu
+
+openshift_project: nvidia
