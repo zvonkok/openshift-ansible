@@ -6,6 +6,10 @@ repos:
   - "{{ epel_repo }}"
   - "{{ cuda_repo }}"
 
+mesa_gl_rpms:
+  - mesa-libGL
+  - mesa-libEGL
+
 nvidia_driver_rpms:
   - nvidia-driver
   - nvidia-driver-cuda
