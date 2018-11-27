@@ -21,6 +21,9 @@ nvidia_kernel_modules:
   - nvidia_modeset
   - nvidia_uvm
 
+selinux_rpms:
+  - selinux-policy
+  - container-selinux
 
 origin_ci_gpu_root: /root/origin-ci-gpu
 

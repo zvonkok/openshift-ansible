@@ -108,5 +108,13 @@
     repo: 'https://github.com/zvonkok/origin-ci-gpu.git'
     dest: /root/origin-ci-gpu
 
+- name: latest selinux policies
+  yum:
+    name: "{{ item }}"
+    state: latest
+  with_items:
+    "{{ selinux_rpms }}"
+
+
 - name: load selinux policy
   shell: semodule -i /root/origin-ci-gpu/selinux/nvidia-container.pp
